@@ -5,22 +5,22 @@
     The code present on this file had as initial input the X-Sopcast plugin code by Cristi-Atlanta
 
 """
-     
+
 import xbmc,xbmcgui,xbmcplugin,urllib2,os,sys,subprocess,xbmcvfs,socket,re,requests,shutil
 from thread import start_new_thread
 from plexusutils.pluginxbmc import *
 from plexusutils.utilities import handle_wait
 from history import add_to_history
 
-""" Sopcast Dependent variables are listed below"""   
-    
+""" Sopcast Dependent variables are listed below"""
+
 LISTA_SOP='http://www.sopcast.com/chlist.xml'
 SPSC_BINARY = "sp-sc-auth"
 LOCAL_PORT = settings.getSetting('local_port')
 VIDEO_PORT = settings.getSetting('video_port')
 BUFER_SIZE = int(settings.getSetting('buffer_size'))
 if(settings.getSetting('auto_ip')=='true'):
-    LOCAL_IP=xbmc.getIPAddress()
+	LOCAL_IP=xbmc.getIPAddress()
 else: LOCAL_IP=settings.getSetting('localhost')
 VIDEO_STREAM = "http://"+LOCAL_IP+":"+str(VIDEO_PORT)+"/"
 
@@ -46,7 +46,7 @@ osx_sopcast_downloader() -> Sopcast downloader thread to avoid curl bugs in OSX
 """
 
 
-""" Sopcast Main functions"""   
+""" Sopcast Main functions"""
 
 def sopstreams(name,iconimage,sop):
 	if not iconimage: iconimage = os.path.join(addonpath,'resources','art','sopcast_logo.jpg')
@@ -55,101 +55,101 @@ def sopstreams(name,iconimage,sop):
 	print("Starting Player Sop URL: " + str(sop))
 	labelname=name
 	if settings.getSetting('addon_history') == "true":
-	    try: add_to_history(labelname, str(sop),2, iconimage)
-	    except: pass
+		try: add_to_history(labelname, str(sop),2, iconimage)
+		except: pass
 	if not xbmc.getCondVisibility('system.platform.windows'):
-	    if xbmc.getCondVisibility('System.Platform.Android'):
-	    	if  settings.getSetting('external-sopcast') == "1":
-			xbmc.executebuiltin('XBMC.StartAndroidActivity("org.sopcast.android","android.intent.action.VIEW","",'+sop+')')    
+		if xbmc.getCondVisibility('System.Platform.Android'):
+			if  settings.getSetting('external-sopcast') == "1":
+				xbmc.executebuiltin('XBMC.StartAndroidActivity("org.sopcast.android","android.intent.action.VIEW","",'+sop+')')
+			else: sopstreams_builtin(name,iconimage,sop)
 		else: sopstreams_builtin(name,iconimage,sop)
-            else: sopstreams_builtin(name,iconimage,sop)
-        else:
-            cmd = ['sc','sdshow','sopcastp2p']
-            import subprocess
-            proc = subprocess.Popen(cmd,stdout=subprocess.PIPE,shell=True)
-            config = True  
-            for line in proc.stdout:
-                    if " 1060:" in line.rstrip():
-                        config = False
-                        print("Sopcast configuration is not done!")
-            if config == False: mensagemok(translate(30000),translate(30027),translate(30028), translate(30029))
-            else:
-                import _winreg
-                aReg = _winreg.ConnectRegistry(None,_winreg.HKEY_LOCAL_MACHINE)
-                
-                #Dirty hack to break sopcast h264 codec so double sound can be avoided
+	else:
+		cmd = ['sc','sdshow','sopcastp2p']
+		import subprocess
+		proc = subprocess.Popen(cmd,stdout=subprocess.PIPE,shell=True)
+		config = True
+		for line in proc.stdout:
+			if " 1060:" in line.rstrip():
+				config = False
+				print("Sopcast configuration is not done!")
+		if config == False: mensagemok(translate(30000),translate(30027),translate(30028), translate(30029))
+		else:
+			import _winreg
+			aReg = _winreg.ConnectRegistry(None,_winreg.HKEY_LOCAL_MACHINE)
 
-                try:
-                	aKey = _winreg.OpenKey(aReg, r'SOFTWARE\SopCast\Player\InstallPath',0, _winreg.KEY_READ)
-                	name, value, type = _winreg.EnumValue(aKey, 0)
-                	codec_file = os.path.join(os.path.join(value.replace("SopCast.exe","")),'codec','sop.ocx')
-                	_winreg.CloseKey(aKey)
-                	if xbmcvfs.exists(codec_file): xbmcvfs.rename(codec_file,os.path.join(os.path.join(value.replace("SopCast.exe","")),'codec','sop.ocx.old'))
-                except:pass
-                aReg = _winreg.ConnectRegistry(None,_winreg.HKEY_LOCAL_MACHINE)
-                aKey = _winreg.OpenKey(aReg, r'SYSTEM\CurrentControlSet\Services\sopcastp2p\Parameters', 3, _winreg.KEY_WRITE)
-                _winreg.SetValueEx(aKey,"AppParameters",0, _winreg.REG_SZ, sop)  
-                _winreg.CloseKey(aKey)
-                cmd = ['sc','start','sopcastp2p']
-                import subprocess
-                proc = subprocess.Popen(cmd,stdout=subprocess.PIPE,shell=True)
-                servicecreator = False
-                for line in proc.stdout:
-                        print("result line: " + line.rstrip())
-                res = handle_wait_socket(int(settings.getSetting('socket_time')),translate(30000),translate(30030))
+			#Dirty hack to break sopcast h264 codec so double sound can be avoided
 
-                if res == True:
-                        print("Server created - waiting x seconds for confirmation")
-                        try: sock.close()
-                        except: pass
-                        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                        handle_wait(int(settings.getSetting('stream_time')),translate(30000),translate(30031),segunda='')
-                        try:
-                                result = sock.connect(('127.0.0.1',8902))
-                                connected = True
-                        except: connected = False
-                        if connected == True:
-                                playlist = xbmc.PlayList(1)
-                                playlist.clear()
-                                listitem = xbmcgui.ListItem(labelname, iconImage=iconimage, thumbnailImage=iconimage)
-                                listitem.setLabel(labelname)
-                                listitem.setInfo("Video", {"Title":labelname})
-                                listitem.setProperty('mimetype', 'video/x-msvideo')
-                                listitem.setProperty('IsPlayable', 'true')
-				windows_sop_url = "http://127.0.0.1:8902/tv.asf"
-				listitem.setPath(path=windows_sop_url)
-                                playlist.add(windows_sop_url, listitem)
-				xbmcplugin.setResolvedUrl(int(sys.argv[1]),True,listitem)
-                                player = SopWindowsPlayer()
-				if int(sys.argv[1]) < 0:
-                                	player.play(playlist)
-                                while player._playbackLock:
-                                    xbmc.sleep(5000)
-                        else: xbmc.executebuiltin("Notification(%s,%s,%i,%s)" % (translate(30000), translate(30032), 1,os.path.join(addonpath,"icon.png")))
-                else: xbmc.executebuiltin("Notification(%s,%s,%i,%s)" % (translate(30000), translate(30032), 1,os.path.join(addonpath,"icon.png")))
-                print("Player reached the end")
-                cmd = ['sc','stop','sopcastp2p']
-                import subprocess
-                proc = subprocess.Popen(cmd,stdout=subprocess.PIPE,shell=True)
-                servicecreator = False
-                for line in proc.stdout:
-                        print("result line" + line.rstrip())
-			 #dirty hack to break sopcast.exe player codec - renaming the file later
-                import _winreg
-                aReg = _winreg.ConnectRegistry(None,_winreg.HKEY_LOCAL_MACHINE)
-                try:
-                	aKey = _winreg.OpenKey(aReg, r'SOFTWARE\SopCast\Player\InstallPath',0, _winreg.KEY_READ)
-                	name, value, type = _winreg.EnumValue(aKey, 0)
-                	codec_file = os.path.join(os.path.join(value.replace("SopCast.exe","")),'codec','sop.ocx.old')
-                	_winreg.CloseKey(aKey)
-                	if xbmcvfs.exists(codec_file): xbmcvfs.rename(codec_file,os.path.join(os.path.join(value.replace("SopCast.exe","")),'codec','sop.ocx'))
-                except:pass
+			try:
+				aKey = _winreg.OpenKey(aReg, r'SOFTWARE\SopCast\Player\InstallPath',0, _winreg.KEY_READ)
+				name, value, type = _winreg.EnumValue(aKey, 0)
+				codec_file = os.path.join(os.path.join(value.replace("SopCast.exe","")),'codec','sop.ocx')
+				_winreg.CloseKey(aKey)
+				if xbmcvfs.exists(codec_file): xbmcvfs.rename(codec_file,os.path.join(os.path.join(value.replace("SopCast.exe","")),'codec','sop.ocx.old'))
+			except:pass
+			aReg = _winreg.ConnectRegistry(None,_winreg.HKEY_LOCAL_MACHINE)
+			aKey = _winreg.OpenKey(aReg, r'SYSTEM\CurrentControlSet\Services\sopcastp2p\Parameters', 3, _winreg.KEY_WRITE)
+			_winreg.SetValueEx(aKey,"AppParameters",0, _winreg.REG_SZ, sop)
+			_winreg.CloseKey(aKey)
+			cmd = ['sc','start','sopcastp2p']
+			import subprocess
+			proc = subprocess.Popen(cmd,stdout=subprocess.PIPE,shell=True)
+			servicecreator = False
+			for line in proc.stdout:
+				print("result line: " + line.rstrip())
+			res = handle_wait_socket(int(settings.getSetting('socket_time')),translate(30000),translate(30030))
+
+			if res == True:
+				print("Server created - waiting x seconds for confirmation")
+				try: sock.close()
+				except: pass
+				sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+				handle_wait(int(settings.getSetting('stream_time')),translate(30000),translate(30031),segunda='')
+				try:
+					result = sock.connect(('127.0.0.1',8902))
+					connected = True
+				except: connected = False
+				if connected == True:
+					playlist = xbmc.PlayList(1)
+					playlist.clear()
+					listitem = xbmcgui.ListItem(labelname, iconImage=iconimage, thumbnailImage=iconimage)
+					listitem.setLabel(labelname)
+					listitem.setInfo("Video", {"Title":labelname})
+					listitem.setProperty('mimetype', 'video/x-msvideo')
+					listitem.setProperty('IsPlayable', 'true')
+					windows_sop_url = "http://127.0.0.1:8902/tv.asf"
+					listitem.setPath(path=windows_sop_url)
+					playlist.add(windows_sop_url, listitem)
+					xbmcplugin.setResolvedUrl(int(sys.argv[1]),True,listitem)
+					player = SopWindowsPlayer()
+					if int(sys.argv[1]) < 0:
+						player.play(playlist)
+					while player._playbackLock:
+						xbmc.sleep(5000)
+				else: xbmc.executebuiltin("Notification(%s,%s,%i,%s)" % (translate(30000), translate(30032), 1,os.path.join(addonpath,"icon.png")))
+			else: xbmc.executebuiltin("Notification(%s,%s,%i,%s)" % (translate(30000), translate(30032), 1,os.path.join(addonpath,"icon.png")))
+			print("Player reached the end")
+			cmd = ['sc','stop','sopcastp2p']
+			import subprocess
+			proc = subprocess.Popen(cmd,stdout=subprocess.PIPE,shell=True)
+			servicecreator = False
+			for line in proc.stdout:
+				print("result line" + line.rstrip())
+				#dirty hack to break sopcast.exe player codec - renaming the file later
+			import _winreg
+			aReg = _winreg.ConnectRegistry(None,_winreg.HKEY_LOCAL_MACHINE)
+			try:
+				aKey = _winreg.OpenKey(aReg, r'SOFTWARE\SopCast\Player\InstallPath',0, _winreg.KEY_READ)
+				name, value, type = _winreg.EnumValue(aKey, 0)
+				codec_file = os.path.join(os.path.join(value.replace("SopCast.exe","")),'codec','sop.ocx.old')
+				_winreg.CloseKey(aKey)
+				if xbmcvfs.exists(codec_file): xbmcvfs.rename(codec_file,os.path.join(os.path.join(value.replace("SopCast.exe","")),'codec','sop.ocx'))
+			except:pass
 
 
 def sopstreams_builtin(name,iconimage,sop):
 	try:
 		global spsc
-        	if xbmc.getCondVisibility('System.Platform.Linux') and not xbmc.getCondVisibility('System.Platform.Android'):
+		if xbmc.getCondVisibility('System.Platform.Linux') and not xbmc.getCondVisibility('System.Platform.Android'):
 
 			if os.uname()[4] == "armv6l" or os.uname()[4] == "armv7l" or settings.getSetting('openelecx86_64') == "true":
 				if settings.getSetting('jynxbox_arm7') == "true":
@@ -158,17 +158,17 @@ def sopstreams_builtin(name,iconimage,sop):
 					cmd = [os.path.join(pastaperfil,'sopcast','qemu-i386'),os.path.join(pastaperfil,'sopcast','lib/ld-linux.so.2'),"--library-path",os.path.join(pastaperfil,'sopcast',"lib"),os.path.join(pastaperfil,'sopcast','sp-sc-auth'),sop,str(LOCAL_PORT),str(VIDEO_PORT)]
 			elif settings.getSetting('openeleci386') == "true":
 				cmd = [os.path.join(pastaperfil,'sopcast','lib/ld-linux.so.2'),"--library-path",os.path.join(pastaperfil,'sopcast',"lib"),os.path.join(pastaperfil,'sopcast','sp-sc-auth'),sop,str(LOCAL_PORT),str(VIDEO_PORT)]
-			else: 
+			else:
 				cmd = [os.path.join(pastaperfil,'sopcast','ld-linux.so.2'),'--library-path',os.path.join(pastaperfil,'sopcast','lib'),os.path.join(pastaperfil,'sopcast',SPSC_BINARY), sop, str(LOCAL_PORT), str(VIDEO_PORT)]
-				
+
 		elif xbmc.getCondVisibility('System.Platform.OSX'):
 			cmd = [os.path.join(pastaperfil,'sopcast','sp-sc-auth'), str(sop), str(LOCAL_PORT), str(VIDEO_PORT)]
-			
+
 		elif xbmc.getCondVisibility('System.Platform.Android'):
 			cmd = [str(settings.getSetting('android_sopclient')), str(sop), str(LOCAL_PORT), str(VIDEO_PORT)]
 
 		print(cmd)
-				
+
 		#Check if another instance of the sopcast executable might still be running on the same port. Attempt to connect to server and video ports giving the user the choice before creating a new subprocess
 		try:
 			sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -190,24 +190,24 @@ def sopstreams_builtin(name,iconimage,sop):
 						if match:
 							if 'sopclient' in match[-1] and len(match)>2:
 								if xbmc_user == match[0]:
-									os.system("kill " + match[1])
+									os.system("kill -9 " + match[1])
 									xbmc.sleep(200)
 								else:
-									os.system("su -c kill " + match[1])
+									os.system("su -c kill -9 " + match[1])
 									xbmc.sleep(200)
 				elif xbmc.getCondVisibility('System.Platform.Linux'):
-					os.system("kill $(ps aux | grep '[s]p-sc-auth' | awk '{print $1}')") #openelec
-					os.system("kill $(ps aux | grep '[s]p-sc-auth' | awk '{print $2}')")
+					os.system("kill -9 $(ps aux | grep '[s]p-sc-auth' | awk '{print $1}')") #openelec
+					os.system("kill -9 $(ps aux | grep '[s]p-sc-auth' | awk '{print $2}')")
 				elif xbmc.getCondVisibility('System.Platform.OSX'):
-					os.system("kill $(ps aux | grep '[s]p-sc-auth')")
+					os.system("kill -9 $(ps aux | grep '[s]p-sc-auth')")
 			else: pass
 		else: pass
-		
+
 		#opening the subprocess
 		if settings.getSetting('debug_mode') == "false":
 			spsc = subprocess.Popen(cmd, shell=False, bufsize=BUFER_SIZE,stdin=None, stdout=None, stderr=None)
 		else:
-			spsc = subprocess.Popen(cmd, shell=False, bufsize=BUFER_SIZE,stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)    
+			spsc = subprocess.Popen(cmd, shell=False, bufsize=BUFER_SIZE,stdin=None, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 		listitem = xbmcgui.ListItem(name, iconImage=iconimage, thumbnailImage=iconimage)
 		listitem.setLabel(name)
 		listitem.setInfo('video', {'Title': name})
@@ -233,16 +233,16 @@ def sopstreams_builtin(name,iconimage,sop):
 				break
 			except:
 				if warning == 0:
-				    print("Other instance of sopcast is still running")
-				    warning += 1
+					print("Other instance of sopcast is still running")
+					warning += 1
 				else: pass
-                    
+
 		if res:
 			mensagemprogresso.update(100)
 			if not xbmc.getCondVisibility('System.Platform.OSX'):
 				listitem.setPath(path=url)
 				xbmcplugin.setResolvedUrl(int(sys.argv[1]),True,listitem)
-				player = streamplayer(xbmc.PLAYER_CORE_AUTO , spsc_pid=spsc.pid , listitem=listitem)
+				player = streamplayer(spsc_pid=spsc.pid , listitem=listitem)
 				if int(sys.argv[1]) < 0:
 					player.play(url, listitem)
 				while player._playbackLock:
@@ -254,17 +254,17 @@ def sopstreams_builtin(name,iconimage,sop):
 				handle_wait(int(settings.getSetting('stream_time_osx')),translate(30000),translate(30031),segunda='')
 				listitem.setPath(path=video_file)
 				xbmcplugin.setResolvedUrl(int(sys.argv[1]),True,listitem)
-				player = streamplayer(xbmc.PLAYER_CORE_AUTO , spsc_pid=spsc.pid , listitem=listitem)
+				player = streamplayer(spsc_pid=spsc.pid , listitem=listitem)
 				player.play(video_file, listitem)
 				while player._playbackLock:
 					xbmc.sleep(500)
 		else:
-		    xbmc.sleep(200)
-		    xbmc.executebuiltin("Notification(%s,%s,%i,%s)" % (translate(30000), translate(30032), 1,os.path.join(addonpath,"icon.png")))
+			xbmc.sleep(200)
+			xbmc.executebuiltin("Notification(%s,%s,%i,%s)" % (translate(30000), translate(30032), 1,os.path.join(addonpath,"icon.png")))
 
 	except: pass
 	if settings.getSetting('debug_mode') == "true":
-		try:	
+		try:
 			stdout, stderr = spsc.communicate()
 			print(stdout,stderr)
 		except: pass
@@ -279,134 +279,134 @@ def sopstreams_builtin(name,iconimage,sop):
 	xbmc.sleep(100)
 	try:spsc.wait()
 	except:pass
-	xbmc.sleep(100)           
+	xbmc.sleep(100)
 	try: os.kill(spsc.pid,9)
 	except: pass
 	mensagemprogresso.close()
 	print("Player ended at last")
-    
-    
-""" Sopcast Player classes """   
+
+
+""" Sopcast Player classes """
 
 
 class SopWindowsPlayer(xbmc.Player):
-      def __init__(self):
-            self._playbackLock = True
-            if settings.getSetting('force_dvplayer') == 'true': xbmc.Player(xbmc.PLAYER_CORE_DVDPLAYER)
-            print("Player created")
-            
-      def onPlayBackStarted(self):
-            print("Player has started")
-                              
-      def onPlayBackStopped(self):
-            print("Player stoped")
-            self._playbackLock = False
-            import subprocess
-            cmd = ['sc','stop','sopcastp2p']
-            proc = subprocess.Popen(cmd,stdout=subprocess.PIPE,shell=True)
-            for line in proc.stdout:
-                    print(line.rstrip())
+	def __init__(self):
+		self._playbackLock = True
+		if settings.getSetting('force_dvplayer') == 'true': xbmc.Player(xbmc.PLAYER_CORE_DVDPLAYER)
+		print("Player created")
+
+	def onPlayBackStarted(self):
+		print("Player has started")
+
+	def onPlayBackStopped(self):
+		print("Player stoped")
+		self._playbackLock = False
+		import subprocess
+		cmd = ['sc','stop','sopcastp2p']
+		proc = subprocess.Popen(cmd,stdout=subprocess.PIPE,shell=True)
+		for line in proc.stdout:
+			print(line.rstrip())
 
 
-      def onPlayBackEnded(self):              
-            self.onPlayBackStopped()
-            print("Player ended")
+	def onPlayBackEnded(self):
+		self.onPlayBackStopped()
+		print("Player ended")
 
 
 
 class streamplayer(xbmc.Player):
-    def __init__( self , *args, **kwargs):
-        self.spsc_pid=kwargs.get('spsc_pid')
-        self.listitem=kwargs.get('listitem')
-        self._playbackLock = True
+	def __init__( self , *args, **kwargs):
+		self.spsc_pid=kwargs.get('spsc_pid')
+		self.listitem=kwargs.get('listitem')
+		self._playbackLock = True
 
-    def onPlayBackStarted(self):
-        mensagemprogresso.close()
-        if xbmc.Player(xbmc.PLAYER_CORE_AUTO).getPlayingFile() != "http://"+LOCAL_IP+":"+str(VIDEO_PORT)+"/" and 'sopcast' not in xbmc.Player(xbmc.PLAYER_CORE_AUTO).getPlayingFile():
-            try: os.kill(self.spsc_pid,9)
-            except: pass
-        else: pass
+	def onPlayBackStarted(self):
+		mensagemprogresso.close()
+		if xbmc.Player().getPlayingFile() != "http://"+LOCAL_IP+":"+str(VIDEO_PORT)+"/" and 'sopcast' not in xbmc.Player(xbmc.PLAYER_CORE_AUTO).getPlayingFile():
+			try: os.kill(self.spsc_pid,9)
+			except: pass
+		else: pass
 
-    def onPlayBackEnded(self):
-        url = "http://"+LOCAL_IP+":"+str(VIDEO_PORT)+"/"
-        xbmc.sleep(300)
-        if os.path.exists("/proc/"+str(self.spsc_pid)) and xbmc.getCondVisibility("Window.IsActive(epg.xml)") and settings.getSetting('safe_stop')=="true":
-            if not xbmc.Player(xbmc.PLAYER_CORE_AUTO).isPlaying():
-                player = streamplayer(xbmc.PLAYER_CORE_AUTO , spsc_pid=self.spsc_pid , listitem=self.listitem)
-                player.play(url, self.listitem) 
-        try:
-        	xbmcvfs.delete(os.path.join(pastaperfil,'sopcast.avi'))
-        except:
-        	pass    
+	def onPlayBackEnded(self):
+		url = "http://"+LOCAL_IP+":"+str(VIDEO_PORT)+"/"
+		xbmc.sleep(300)
+		if os.path.exists("/proc/"+str(self.spsc_pid)) and xbmc.getCondVisibility("Window.IsActive(epg.xml)") and settings.getSetting('safe_stop')=="true":
+			if not xbmc.Player().isPlaying():
+				player = streamplayer(spsc_pid=self.spsc_pid , listitem=self.listitem)
+				player.play(url, self.listitem)
+		try:
+			xbmcvfs.delete(os.path.join(pastaperfil,'sopcast.avi'))
+		except:
+			pass
 
-    def onPlayBackStopped(self):
-        self._playbackLock = False
-        url = "http://"+LOCAL_IP+":"+str(VIDEO_PORT)+"/"
-        xbmc.sleep(300)
-        if os.path.exists("/proc/"+str(self.spsc_pid)) and xbmc.getCondVisibility("Window.IsActive(epg.xml)") and settings.getSetting('safe_stop')=="true":
-            if not xbmc.Player(xbmc.PLAYER_CORE_AUTO).isPlaying(): 
-                player = streamplayer(xbmc.PLAYER_CORE_AUTO , spsc_pid=self.spsc_pid , listitem=self.listitem)
-                player.play(url, self.listitem)
-        else:
-            try: os.kill(self.spsc_pid,9)
-            except: pass
-        try:
-        	xbmcvfs.delete(os.path.join(pastaperfil,'sopcast.avi'))
-        except:
-        	pass
-                         
-""" Sopcast Utils"""   
+	def onPlayBackStopped(self):
+		self._playbackLock = False
+		url = "http://"+LOCAL_IP+":"+str(VIDEO_PORT)+"/"
+		xbmc.sleep(300)
+		if os.path.exists("/proc/"+str(self.spsc_pid)) and xbmc.getCondVisibility("Window.IsActive(epg.xml)") and settings.getSetting('safe_stop')=="true":
+			if not xbmc.Player().isPlaying():
+				player = streamplayer(spsc_pid=self.spsc_pid , listitem=self.listitem)
+				player.play(url, self.listitem)
+		else:
+			try: os.kill(self.spsc_pid,9)
+			except: pass
+		try:
+			xbmcvfs.delete(os.path.join(pastaperfil,'sopcast.avi'))
+		except:
+			pass
+
+""" Sopcast Utils"""
 
 def handle_wait_socket(time_to_wait,title,text,segunda=''):
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        connected = False
-        ret = mensagemprogresso.create(' '+title)
-        secs=0
-        percent=0
-        increment = int(100 / time_to_wait)
-        cancelled = False
-        while secs < time_to_wait:
-                try:
-                        result = sock.connect(('127.0.0.1',8902))
-                        connected = True
-                        print("Connected to port 8902, server is working")
-                        break
-                        sock.close()
-                except:
-                        print("Stil trying to connect")
-                secs = secs + 1
-                percent = increment*secs
-                secs_left = str((time_to_wait - secs))
-                if segunda=='': remaining_display = translate(30036) + " " + str(percent) + " %"
-                else: remaining_display=segunda
-                mensagemprogresso.update(percent,text,remaining_display)
-                xbmc.sleep(1000)
-                if (mensagemprogresso.iscanceled()):
-                        cancelled = True
-                        break
-        if cancelled == True:
-                return False
-        elif connected == True:
-                mensagemprogresso.close()
-                return True
-        else:
-                mensagemprogresso.close()
-                return False
-                
-def sop_sleep(time , spsc_pid):
-    counter=0
-    increment=200
-    path="/proc/%s" % str(spsc_pid)
-    try:
-      while counter < time and spsc_pid>0 and not xbmc.abortRequested:
-        counter += increment
-        xbmc.sleep(increment)
-    except: return True
-        
-    if counter < time: return False
-    else: return True
+	sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	connected = False
+	ret = mensagemprogresso.create(' '+title)
+	secs=0
+	percent=0
+	increment = int(100 / time_to_wait)
+	cancelled = False
+	while secs < time_to_wait:
+		try:
+			result = sock.connect(('127.0.0.1',8902))
+			connected = True
+			print("Connected to port 8902, server is working")
+			break
+			sock.close()
+		except:
+			print("Stil trying to connect")
+		secs = secs + 1
+		percent = increment*secs
+		secs_left = str((time_to_wait - secs))
+		if segunda=='': remaining_display = translate(30036) + " " + str(percent) + " %"
+		else: remaining_display=segunda
+		mensagemprogresso.update(percent,text,remaining_display)
+		xbmc.sleep(1000)
+		if (mensagemprogresso.iscanceled()):
+			cancelled = True
+			break
+	if cancelled == True:
+		return False
+	elif connected == True:
+		mensagemprogresso.close()
+		return True
+	else:
+		mensagemprogresso.close()
+		return False
 
-#dirty hack to break sopcast.exe player codec to avoid double sound   
+def sop_sleep(time , spsc_pid):
+	counter=0
+	increment=200
+	path="/proc/%s" % str(spsc_pid)
+	try:
+		while counter < time and spsc_pid>0 and not xbmc.abortRequested:
+			counter += increment
+			xbmc.sleep(increment)
+	except: return True
+
+	if counter < time: return False
+	else: return True
+
+#dirty hack to break sopcast.exe player codec to avoid double sound
 def break_sopcast():
 	if xbmc.getCondVisibility('system.platform.windows'):
 		import _winreg
@@ -428,3 +428,4 @@ def osx_sopcast_downloader():
 	with open(video_file, 'wb') as out_file:
 		shutil.copyfileobj(response.raw, out_file)
 	print "ended thread"
+
